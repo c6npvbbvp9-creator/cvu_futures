@@ -120,8 +120,8 @@ def update_excel(all_data: dict):
             if key in existing:
                 continue
 
-            source = row_data.get("source", "CME")
-            is_fallback = source != "CME"
+            source = row_data.get("source", "CME via TradingView")
+            is_fallback = "CONTINGÊNCIA" in source
 
             nr = ws.max_row + 1
             ws.cell(nr, 1, row_data["collection_date"])
