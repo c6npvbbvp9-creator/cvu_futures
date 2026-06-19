@@ -2,7 +2,6 @@ name: Daily CME Futures Update
 
 on:
   schedule:
-    # Roda segunda a sexta às 21:00 UTC (18:00 Brasília / verão americano)
     - cron: "0 21 * * 1-5"
   workflow_dispatch:
 
@@ -36,6 +35,17 @@ jobs:
 
       - name: Instalar navegador Chromium (Playwright)
         run: python -m playwright install chromium
+
+      - name: DEBUG — inspeciona estrutura do TradingView
+        run: python debug_tv.py
+
+      - name: Upload screenshots de debug
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: debug-screenshots
+          path: debug_output/
+          retention-days: 1
 
       - name: Executar coleta e atualizar Excel
         run: python main.py
