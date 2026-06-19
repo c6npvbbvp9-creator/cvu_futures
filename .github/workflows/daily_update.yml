@@ -36,8 +36,6 @@ jobs:
       - name: Instalar navegador Chromium (Playwright)
         run: python -m playwright install chromium
 
-      - name: DEBUG — inspeciona estrutura do TradingView
-        run: python debug_tv.py
 
       - name: Upload screenshots de debug
         uses: actions/upload-artifact@v4
