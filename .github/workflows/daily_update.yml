@@ -1,13 +1,16 @@
 name: Daily CME Futures Update
+
 on:
   schedule:
-    - cron: "0 23 * * 1-5"
+    - cron: "0 21 * * 1-5"
   workflow_dispatch:
+
 jobs:
   update-futures:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
       - name: Checkout do repositório
         uses: actions/checkout@v4
@@ -32,9 +35,6 @@ jobs:
 
       - name: Instalar navegador Chromium (Playwright)
         run: python -m playwright install chromium
-
-      - name: Limpar Excel anterior
-        run: python reset_excel.py
 
       - name: Executar coleta e atualizar Excel
         run: python main.py
