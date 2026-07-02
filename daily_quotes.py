@@ -1,8 +1,9 @@
 """
 Cotações Diárias — aba resumo com 1 linha por dia e 1 coluna por ticker.
+Datas mais recentes aparecem primeiro.
 
 Estrutura da aba "Cotações Diárias":
-  Data | HH | Brent | NBP | JKM | TTF | Coal_API2
+  Data | HH | Brent | NBP | JKM | TTF
 
 Uso:
   python daily_quotes.py --backfill   → popula histórico de junho
@@ -17,16 +18,16 @@ from openpyxl.utils import get_column_letter
 
 EXCEL_PATH = "data/CME_Futures_Database.xlsx"
 SHEET_NAME = "Cotações Diárias"
-TICKERS    = ["HH", "Brent", "NBP", "JKM", "TTF", "Coal_API2"]
 
-# Símbolos Yahoo Finance v8 para front month contínuo
+# Coal_API2 removido conforme solicitado
+TICKERS = ["HH", "Brent", "NBP", "JKM", "TTF"]
+
 YAHOO_SYMBOLS = {
-    "HH":        "NG=F",
-    "Brent":     "BZ=F",
-    "NBP":       "UKG=F",
-    "JKM":       "JKM=F",
-    "TTF":       "TTF=F",
-    "Coal_API2": "MTF=F",
+    "HH":    "NG=F",
+    "Brent": "BZ=F",
+    "NBP":   "UKG=F",
+    "JKM":   "JKM=F",
+    "TTF":   "TTF=F",
 }
 
 HEADER_BG  = "2E4057"
@@ -69,39 +70,22 @@ def _style_row(ws, row_idx):
         c.border    = _border()
 
 
-def _get_or_create_sheet(wb):
-    if SHEET_NAME in wb.sheetnames:
-        return wb[SHEET_NAME]
-    ws = wb.create_sheet(title=SHEET_NAME, index=0)
-    _setup_sheet(ws)
-    return ws
-
-
-def _existing_dates(ws) -> set:
-    return {str(row[0])[:10] for row in ws.iter_rows(min_row=2, values_only=True) if row[0]}
-
-
 # ---------------------------------------------------------------------------
 # Coleta de preços
 # ---------------------------------------------------------------------------
 
 def _fetch_yahoo(symbol: str, date_from: str, date_to: str) -> dict:
-    """
-    Busca histórico via API v8 do Yahoo Finance (requests simples, sem browser).
-    Retorna {date_str: close_price_str}.
-    """
+    """Busca histórico via API v8 do Yahoo Finance. Retorna {date_str: price_str}."""
     p1 = int(datetime.strptime(date_from, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
-    p2 = int(datetime.strptime(date_to,   "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp()) + 86400
+    p2 = int(datetime.strptime(date_to, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp()) + 86400
 
-    # Tenta query1 e query2 como fallback
     for host in ["query1", "query2"]:
         url = (f"https://{host}.finance.yahoo.com/v8/finance/chart/{symbol}"
                f"?interval=1d&period1={p1}&period2={p2}&includePrePost=false")
         try:
             req = urllib.request.Request(url, headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                "Accept":     "application/json",
-                "Accept-Language": "en-US,en;q=0.9",
+                "Accept": "application/json",
             })
             raw  = urllib.request.urlopen(req, timeout=20).read()
             data = json.loads(raw)
@@ -112,20 +96,17 @@ def _fetch_yahoo(symbol: str, date_from: str, date_to: str) -> dict:
             for t, c in zip(timestamps, closes):
                 if c is None:
                     continue
-                d = datetime.utcfromtimestamp(int(t)).date().isoformat()
+                d = datetime.fromtimestamp(int(t), tz=timezone.utc).date().isoformat()
                 result[d] = f"{float(c):.4f}"
             return result
         except Exception as e:
             print(f"    [{host}] ERRO: {e}")
             time.sleep(1)
-
     return {}
 
 
 def _get_today_from_excel() -> dict:
-    """
-    Lê o primeiro contrato disponível de hoje no Excel (front month).
-    """
+    """Lê o primeiro contrato disponível de hoje no Excel (front month)."""
     prices = {}
     today  = date.today().isoformat()
     try:
@@ -145,35 +126,72 @@ def _get_today_from_excel() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Atualização do Excel
+# Atualização do Excel — reconstrói a aba com datas mais recentes primeiro
 # ---------------------------------------------------------------------------
 
-def update_daily_quotes(prices_by_date: dict):
-    wb       = load_workbook(EXCEL_PATH)
-    ws       = _get_or_create_sheet(wb)
-    existing = _existing_dates(ws)
-    added    = 0
-
-    for d in sorted(prices_by_date.keys()):
-        if d in existing:
-            continue
-        prices = prices_by_date[d]
-        nr = ws.max_row + 1
-        ws.cell(nr, 1, d)
-        for i, ticker in enumerate(TICKERS, 2):
-            ws.cell(nr, i, prices.get(ticker, ""))
-        _style_row(ws, nr)
-        existing.add(d)
-        added += 1
-
-    # Garante que a aba fique na primeira posição
+def _rebuild_sheet(wb, prices_by_date: dict):
+    """
+    Reconstrói a aba "Cotações Diárias" do zero,
+    ordenando as datas da mais recente para a mais antiga.
+    """
+    # Remove aba existente se houver
     if SHEET_NAME in wb.sheetnames:
-        idx = wb.sheetnames.index(SHEET_NAME)
-        if idx != 0:
-            wb.move_sheet(SHEET_NAME, offset=-idx)
+        del wb[SHEET_NAME]
 
+    # Cria nova aba na primeira posição
+    ws = wb.create_sheet(title=SHEET_NAME, index=0)
+    _setup_sheet(ws)
+
+    # Ordena datas do mais recente ao mais antigo
+    for row_idx, d in enumerate(sorted(prices_by_date.keys(), reverse=True), start=2):
+        prices = prices_by_date[d]
+        ws.cell(row_idx, 1, d)
+        for i, ticker in enumerate(TICKERS, 2):
+            ws.cell(row_idx, i, prices.get(ticker, ""))
+        _style_row(ws, row_idx)
+
+    return ws
+
+
+def update_daily_quotes(new_prices: dict):
+    """
+    Atualiza a aba de cotações diárias.
+    new_prices: {date_str: {ticker: price_str}}
+    """
+    wb = load_workbook(EXCEL_PATH)
+
+    # Lê dados existentes da aba
+    existing = {}
+    if SHEET_NAME in wb.sheetnames:
+        ws_old = wb[SHEET_NAME]
+        for row in ws_old.iter_rows(min_row=2, values_only=True):
+            if not row[0]:
+                continue
+            d = str(row[0])[:10]
+            existing[d] = {}
+            for i, ticker in enumerate(TICKERS):
+                val = row[i + 1] if len(row) > i + 1 else ""
+                existing[d][ticker] = str(val) if val not in (None, "") else ""
+
+    # Merge: novos dados sobrepõem existentes
+    merged = {**existing}
+    added = 0
+    for d, prices in new_prices.items():
+        if d not in merged:
+            merged[d] = prices
+            added += 1
+        else:
+            # Atualiza células vazias com novos dados
+            for ticker, price in prices.items():
+                if price and not merged[d].get(ticker):
+                    merged[d][ticker] = price
+
+    # Reconstrói aba ordenada (mais recente primeiro)
+    _rebuild_sheet(wb, merged)
+
+    # Garante que outras abas não mudaram de posição
     wb.save(EXCEL_PATH)
-    print(f"  [Cotações Diárias] {added} dias adicionados")
+    print(f"  [Cotações Diárias] {added} dias novos adicionados ({len(merged)} total)")
 
 
 # ---------------------------------------------------------------------------
@@ -200,7 +218,6 @@ def run_backfill(date_from="2026-06-01", date_to=None):
     for ticker, sym in YAHOO_SYMBOLS.items():
         print(f"  {ticker} ({sym})...")
         history = _fetch_yahoo(sym, date_from, date_to)
-        # Filtra pelo período solicitado
         filtered = {d: v for d, v in history.items() if date_from <= d <= date_to}
         all_history[ticker] = filtered
         print(f"    {len(filtered)} dias coletados", end="")
@@ -220,7 +237,7 @@ def run_backfill(date_from="2026-06-01", date_to=None):
         for d in sorted(all_dates)
     }
 
-    print(f"\n  {len(prices_by_date)} dias no total")
+    print(f"\n  {len(prices_by_date)} dias coletados no total")
     if prices_by_date:
         update_daily_quotes(prices_by_date)
     else:
