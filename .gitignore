@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.png
+data/backup_*.xlsx
+debug_*.py
+test_*.py
+coal_api2.py
+backfill_history.py
