@@ -43,8 +43,11 @@ TICKERS = {
     },
     "Coal_API2": {
         "name": "Coal API2 CIF ARA (Argus/McCloskey)",
-        "tv_url": "https://www.tradingview.com/symbols/NYMEX-MTF1!/contracts/",
-        "root": "MTF",
+        # A listagem NYMEX-MTF1! foi descontinuada (404). O API2 Rotterdam é
+        # nativo da ICE Futures Europe; a página ATW1! está ativa e traz a
+        # curva completa. Símbolos: ATWM2026, ATWN2026, ... (root ATW).
+        "tv_url": "https://www.tradingview.com/symbols/ICEEUR-ATW1!/contracts/",
+        "root": "ATW",
         "use_fallback": False,
     },
 }
