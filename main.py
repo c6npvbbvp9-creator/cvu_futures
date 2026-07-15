@@ -39,6 +39,13 @@ def main():
     except Exception as e:
         print(f"\n[Diesel] ERRO (não fatal): {e}")
 
+    # 4. Câmbio BCB (Euro e fechamento do dólar) via API PTAX
+    try:
+        import bcb_cambio
+        bcb_cambio.run()
+    except Exception as e:
+        print(f"\n[Câmbio BCB] ERRO (não fatal): {e}")
+
 
 if __name__ == "__main__":
     main()
