@@ -91,6 +91,48 @@ def _existing_keys(ws) -> set:
     return keys
 
 
+def _month_key(contract: str):
+    """'JUL 26' -> (2026, 7) para ordenar a curva por vencimento."""
+    codes = {"JAN":1,"FEB":2,"MAR":3,"APR":4,"MAY":5,"JUN":6,
+             "JUL":7,"AUG":8,"SEP":9,"OCT":10,"NOV":11,"DEC":12}
+    try:
+        mon, yy = str(contract).strip().split()
+        return (2000 + int(yy), codes.get(mon.upper(), 99))
+    except Exception:
+        return (9999, 99)
+
+
+def _reorder_sheet(ws, tab_color: str):
+    """
+    Reordena a aba: data de coleta DECRESCENTE (mais recente no topo);
+    dentro de cada coleta, a curva em ordem CRESCENTE de vencimento.
+    Reescreve os dados e reaplica o estilo.
+    """
+    data = []
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if row and row[0]:
+            data.append(list(row[:5]))
+    if not data:
+        return
+
+    # coleta desc, vencimento (contrato) asc
+    data.sort(key=lambda r: (str(r[0]), ), reverse=True)          # 1º: coleta desc
+    data.sort(key=lambda r: _month_key(r[1]))                     # 2º: contrato asc
+    data.sort(key=lambda r: str(r[0]), reverse=True)             # estável: coleta desc domina
+
+    # limpa linhas de dados
+    if ws.max_row >= 2:
+        ws.delete_rows(2, ws.max_row - 1)
+
+    # reescreve ordenado
+    for i, r in enumerate(data, start=2):
+        source = str(r[4]) if len(r) > 4 and r[4] is not None else ""
+        is_fallback = "CONTINGÊNCIA" in source
+        for col in range(5):
+            ws.cell(i, col + 1, r[col] if col < len(r) else "")
+        _style_row(ws, i, is_fallback)
+
+
 def update_excel(all_data: dict):
     os.makedirs("data", exist_ok=True)
 
@@ -145,6 +187,12 @@ def update_excel(all_data: dict):
     # Remove aba temporária se outras foram criadas
     if "__tmp__" in wb.sheetnames and len(wb.sheetnames) > 1:
         del wb["__tmp__"]
+
+    # Reordena todas as abas de futuros: coleta mais recente no topo,
+    # curva em ordem de vencimento dentro de cada dia.
+    for ticker in all_data.keys():
+        if ticker in wb.sheetnames:
+            _reorder_sheet(wb[ticker], TAB_COLORS.get(ticker, "4472C4"))
 
     if not wb.sheetnames:
         ws = wb.create_sheet("Info")
