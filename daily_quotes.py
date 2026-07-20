@@ -31,13 +31,17 @@ EXCEL_PATH = "data/CME_Futures_Database.xlsx"
 SHEET_NAME = "Cotações Diárias"
 
 # Tickers da aba "Cotações Diárias".
-# Diesel  → EIA (fonte externa, ver eia_diesel.py) — NÃO vem das abas de curva
+# Fontes externas (NÃO vêm das abas de curva):
+#   HH     → EIA spot Henry Hub          (ver eia_spot.py)
+#   Brent  → EIA spot Europe Brent       (ver eia_spot.py)
+#   Diesel → EIA ULSD USGC               (ver eia_diesel.py)
 # Coal_API2 → curva do CME/TradingView (front month), proxy de CSARM01
 TICKERS = ["HH", "Brent", "NBP", "JKM", "TTF", "Coal_API2", "Diesel"]
 
 # Tickers cujo preço vem das abas de curva do Excel.
-# Os demais são populados por módulos externos (ex.: Diesel via EIA).
-CURVE_TICKERS = ["HH", "Brent", "NBP", "JKM", "TTF", "Coal_API2"]
+# Os demais são populados por módulos externos (EIA spot/diesel) e ficam de fora
+# aqui para não serem sobrescritos pela curva de futuros.
+CURVE_TICKERS = ["NBP", "JKM", "TTF", "Coal_API2"]
 
 # ---------------------------------------------------------------------------
 # Metodologia do contrato de referência

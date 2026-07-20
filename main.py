@@ -8,9 +8,15 @@ Ponto de entrada principal.
 3. Adiciona o Diesel (POAEE00) via API da EIA — fonte externa, US¢/gal.
 
 Tickers e fontes:
-  HH, Brent, NBP, JKM, TTF   → TradingView (curva de futuros)
+  HH                         → EIA spot Henry Hub (RNGWHHD, USD/MMBtu)
+  Brent                      → EIA spot Europe Brent FOB (RBRTE, USD/bbl)
+  NBP, JKM, TTF              → TradingView (curva de futuros, front-month)
   Coal_API2 (CSARM01)        → TradingView ICEEUR-ATW1! (curva de futuros)
   Diesel (POAEE00)           → EIA ULSD USGC (proxy, requer EIA_API_KEY)
+
+  NOTA: HH e Brent migraram de futuros (TradingView) para SPOT (EIA) em
+  jul/2026, por decisão da gestora — a aba deve refletir mercado spot.
+  TTF/NBP/JKM não têm spot público gratuito e seguem no front-month.
 
 Pendente (sem fonte pública automatizável — índices licenciados):
   Óleo Combustível (PUAAI00) → aguardando definição de fonte/proxy
@@ -26,10 +32,22 @@ def main():
     data = collect_all()
     update_excel(data)
 
-    # 2. Cotações diárias a partir da curva (contrato de referência por ticker)
+    # 2. Cotações diárias a partir da curva (contrato de referência por ticker).
+    #    Preenche apenas NBP, JKM, TTF e Coal_API2 — HH e Brent ficam vazios
+    #    aqui de propósito e são preenchidos pelo spot da EIA no passo 3.
     run_today()
 
-    # 3. Diesel via EIA (não vem da curva; fonte externa)
+    # 3. HH e Brent SPOT via EIA (não vêm da curva; mercado spot, não futuros)
+    try:
+        import eia_spot
+        eia_spot.run()
+    except SystemExit as e:
+        # Falta a EIA_API_KEY — não derruba o resto do pipeline
+        print(f"\n[EIA spot] Pulado: {e}")
+    except Exception as e:
+        print(f"\n[EIA spot] ERRO (não fatal): {e}")
+
+    # 4. Diesel via EIA (não vem da curva; fonte externa)
     try:
         import eia_diesel
         eia_diesel.run()
@@ -39,7 +57,7 @@ def main():
     except Exception as e:
         print(f"\n[Diesel] ERRO (não fatal): {e}")
 
-    # 4. Câmbio BCB (Euro e fechamento do dólar) via API PTAX
+    # 5. Câmbio BCB (Euro e fechamento do dólar) via API PTAX
     try:
         import bcb_cambio
         bcb_cambio.run()
