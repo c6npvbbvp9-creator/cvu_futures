@@ -43,6 +43,10 @@ TICKERS = ["HH", "Brent", "NBP", "JKM", "TTF", "Coal_API2", "Diesel"]
 # aqui para não serem sobrescritos pela curva de futuros.
 CURVE_TICKERS = ["NBP", "JKM", "TTF", "Coal_API2"]
 
+# Tickers cuja coluna "(contrato)" fica OCULTA na aba.
+# HH e Brent são spot (EIA) — não têm contrato, então a coluna não faz sentido.
+HIDE_CONTRACT_COL = ["HH", "Brent"]
+
 # ---------------------------------------------------------------------------
 # Metodologia do contrato de referência
 # ---------------------------------------------------------------------------
@@ -98,14 +102,18 @@ def _border():
 
 def _setup_sheet(ws):
     headers = _columns()
+    hidden_headers = {f"{t} (contrato)" for t in HIDE_CONTRACT_COL}
     for i, h in enumerate(headers, 1):
         c = ws.cell(row=1, column=i, value=h)
         c.font      = Font(name="Arial", bold=True, color=HEADER_FG, size=11)
         c.fill      = PatternFill("solid", start_color=HEADER_BG)
         c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         c.border    = _border()
-        ws.column_dimensions[get_column_letter(i)].width = 14 if i == 1 else (
-            13 if "(contrato)" not in h else 15)
+        col_dim = ws.column_dimensions[get_column_letter(i)]
+        col_dim.width = 14 if i == 1 else (13 if "(contrato)" not in h else 15)
+        # HH e Brent são spot — coluna de contrato não se aplica, fica oculta.
+        if h in hidden_headers:
+            col_dim.hidden = True
     ws.row_dimensions[1].height = 30
     ws.freeze_panes = "B2"
     ws.sheet_properties.tabColor = "2E86AB"
